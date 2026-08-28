@@ -1,0 +1,12 @@
+{
+  "sms": {
+    "n": 5572,
+    "spam_ratio": 0.13406317300789664,
+    "sha256": "440e6ea9fa825578abfdd7b7932ef8393d72ef86c0c33f64676705ce40b1dfc2"
+  },
+  "enron": {
+    "n": 33716,
+    "spam_ratio": 0.5092834262664611,
+    "sha256": "6bba82025050aeaab70d922daea37ab38671eaf5834ee61fe7c91bea3f66cd1e"
+  }
+}
