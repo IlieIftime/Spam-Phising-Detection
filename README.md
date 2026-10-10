@@ -140,7 +140,7 @@ LinearSVC is a rational choice for a security-operations setting: it is cheap, o
 .
 ├── Proj_Final_VFINAL1.ipynb
 ├── preprocess.py
-├── report_consolidated.md      # superseded by this README
+├── requirements.txt
 ├── README.md
 ├── data.7z
 ├── data/
