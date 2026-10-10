@@ -1,109 +1,146 @@
 # Spam & Phishing Detection
 
-A binary classification project for **ham vs spam/phishing** messages across two text domains:
-- **SMS** (`spam.csv`)
-- **Corporate email from the Enron dataset** (`enron_spam.csv`)
+Binary classification of **ham vs spam/phishing** messages across two text domains, with classical models, an LSTM, explainability (SHAP) and adversarial robustness testing.
 
-The main implementation is contained in the **[`Proj_Final_VFINAL1.ipynb`](./Proj_Final_VFINAL1.ipynb)** notebook, with shared preprocessing in **[`preprocess.py`](./preprocess.py)** and a narrative summary in **[`report_consolidated.md`](./report_consolidated.md)**.
+*Course project — Machine Learning for Cybersecurity, ISCTE-Sintra, 2025/2026.*
+*Authors: Ilie Iftime and team members [add names].*
 
-## Objective
+- **Domains:** SMS (`spam.csv`) and corporate email from the Enron dataset (`enron_spam.csv`)
+- **Evaluated views:** `sms`, `enron`, `combined`
+- **Main implementation:** [`Proj_Final_VFINAL1.ipynb`](./Proj_Final_VFINAL1.ipynb), with shared preprocessing in [`preprocess.py`](./preprocess.py)
+- **Primary classifier:** calibrated LinearSVC on TF-IDF + 12 heuristic features
 
-Build and compare spam/phishing detection pipelines using:
-- text representation with TF-IDF;
-- complementary heuristic features;
-- comparisons between classical models and an LSTM;
-- explainability analysis with SHAP and adversarial robustness testing.
+> **Scope.** This repository contains the reproducible study notebook, its outputs and a static HTML dashboard. It does **not** include a deployed API or web application.
 
-## Data and Task Definition
+## Contents
 
-- **Task:** supervised binary classification (`label`: `ham`/`spam`).
-- **Evaluated views:** `sms`, `enron`, and `combined`.
+1. [Motivation](#motivation)
+2. [Data](#data)
+3. [Methodology](#methodology)
+4. [Heuristic features](#heuristic-features)
+5. [Models and evaluation protocol](#models-and-evaluation-protocol)
+6. [Results](#results)
+7. [Explainability (XAI)](#explainability-xai)
+8. [Adversarial robustness](#adversarial-robustness)
+9. [Discussion](#discussion)
+10. [Limitations](#limitations)
+11. [Future work](#future-work)
+12. [Repository structure](#repository-structure)
+13. [How to reproduce](#how-to-reproduce)
+14. [Privacy and GDPR](#privacy-and-gdpr)
+15. [References](#references)
+
+## Motivation
+
+Cybercrime has reached economic maturity (the FBI IC3 reported roughly 12 billion USD in losses in 2023). The two datasets differ in message length, structural noise and class imbalance. The working thesis is that a well-designed model should generalise from short, telegraphic SMS to long corporate email.
+
+## Data
+
+| Source | Description |
+|---|---|
+| SMS Spam Collection (UCI) | 5,572 messages, 2011 [8] |
+| Enron Spam | ~33,700 emails, 1999–2002 [9] |
+
+- **Task:** supervised binary classification (`label`: `ham` / `spam`).
 - The notebook loads `data/spam.csv` and `data/enron_spam.csv`.
-- In the current repository state, the raw CSV files have not been extracted into `data/`; they are stored in **`data.7z`**, together with derived artifacts in `data/`.
+- In the current repository state the raw CSV files are stored in **`data.7z`** (together with derived artifacts); extract it before running the notebook.
 
-## Methodology (Pipeline Summary)
+## Methodology
 
-1. Domain-specific text cleaning (`clean_sms`, `clean_email`).
-2. TF-IDF extraction from cleaned text.
-3. Extraction of heuristic features from raw text.
-4. Concatenation of TF-IDF and heuristic features (`hstack`) for classical models.
-5. Training and evaluation by view (`sms`, `enron`, `combined`) using an 80/20 stratified split.
-6. Threshold selection using **F-beta (β=2)** based on the precision-recall curve.
-7. Model comparison, XAI analysis, and adversarial testing.
+1. Domain-specific cleaning (`clean_sms`, `clean_email`).
+2. TF-IDF extraction from the cleaned text.
+3. Heuristic features extracted from the raw text.
+4. TF-IDF and heuristic features concatenated (`hstack`) for the classical models.
+5. Training and evaluation per view (`sms`, `enron`, `combined`) with a stratified 80/20 hold-out split.
+6. Decision threshold selected with **F-beta (β = 2)** on the precision-recall curve.
+7. Model comparison, XAI analysis and adversarial testing (4 attacks × 3 views × with/without defence).
 
-## Preprocessing and 12 Heuristic Features
+## Heuristic features
 
 `preprocess.py` defines the final set of **12** features:
 
-1. `char_count`
-2. `word_count`
-3. `avg_word_len`
-4. `num_digits`
-5. `has_currency`
-6. `has_unsubscribe`
-7. `ratio_stopwords`
-8. `punctuation_ratio`
-9. `entropy_text`
-10. `has_reply_marker`
-11. `has_signature_block`
-12. `has_shortcode`
+`char_count`, `word_count`, `avg_word_len`, `num_digits`, `has_currency`, `has_unsubscribe`, `ratio_stopwords`, `punctuation_ratio`, `entropy_text`, `has_reply_marker`, `has_signature_block`, `has_shortcode`.
 
-The module itself documents the removal of HTML/URL-based features because of their redundancy with TF-IDF and limited adversarial robustness.
+Four HTML/URL-based features were removed because they overlap with TF-IDF and are vulnerable to adversarial manipulation (documented in `preprocess.py`).
 
-## Models and Evaluation Protocol
+## Models and evaluation protocol
 
-The models trained in the notebook are:
 - **ComplementNB**
-- **LinearSVC** (calibrated with `CalibratedClassifierCV`)
-- **LogisticRegression**
+- **LinearSVC**, calibrated with `CalibratedClassifierCV` (Platt scaling)
+- **Logistic Regression**
 - **Bidirectional LSTM**
-- **IsolationForest** (OOD analysis/filtering)
+- **Isolation Forest** (OOD analysis / filtering)
 
-Recorded metrics include PR-AUC, ROC-AUC, F1, F-beta, precision, recall, confusion matrix, and threshold.
+Recorded metrics: PR-AUC, ROC-AUC, F1, F-beta, precision, recall, confusion matrix and decision threshold.
 
-## Verified Results (Measured)
+## Results
 
 Source: [`tables/summary_classical.csv`](./tables/summary_classical.csv).
 
-- **SVC (calibrated LinearSVC)ต่อ**
-  - SMS: PR-AUC `0.9754`, F1 `0.9317`
-  - Enron: PR-AUC `0.9981`, F1 `0.9943`
-  - Combined: PR-AUC `0.9987`, F1 `0.9913`
-- **LR** achieves the highest PR-AUC/F1 values in the table for Enron and Combined (`1.0000` and `0.9974`, respectively).
-- **LSTM** delivers competitive performance, with higher computational cost, as discussed in the notebook/report.
+**Calibrated LinearSVC**
 
-### Qualitative Conclusions (Not Isolated Metrics)
+| View | PR-AUC | F1 |
+|---|---|---|
+| SMS | 0.9754 | 0.9317 |
+| Enron | 0.9981 | 0.9943 |
+| Combined | 0.9987 | 0.9913 |
 
-- The pipeline generalizes well across the two domains when trained and evaluated on the `combined` view as well.
+- Logistic Regression reaches the highest PR-AUC/F1 values in the table for Enron and Combined (1.0000 and 0.9974, respectively).
+- The LSTM is competitive in PR-AUC at a higher computational cost, as discussed in the notebook.
 - Heuristic features and TF-IDF are used complementarily in the classical pipeline.
+- Training on the `combined` view also performs well on both sub-domains, which supports cross-domain generalisation.
 
 ## Explainability (XAI)
 
-SHAP-based explainability is implemented in the notebook, with artifacts in [`xai/`](./xai):
+SHAP is implemented in the notebook; for the linear model the SHAP values are exact (equivalent to TF-IDF value × coefficient). Artifacts are in [`xai/`](./xai):
+
 - `shap_feature_importance_LinearSVC_*.csv`
 - `svc_shap_comparison.csv`
 - `top15_tokens_*.csv` and `top15_tokens_*.png`
 
-## Adversarial Robustness
+## Adversarial robustness
 
-The attacks implemented in the notebook are `char_substitution`, `whitespace_injection`, `synonym_replacement`, and `textfooler_lite`, with an `NFKD+collapse` defense variant.
+Attacks implemented in the notebook: `char_substitution`, `whitespace_injection`, `synonym_replacement` and `textfooler_lite`, evaluated with and without an `NFKD+collapse` normalisation defence.
 
-Aggregated results are available in:
+Aggregated results:
 
 - [`adversarial/adversarial_summary_by_source.csv`](./adversarial/adversarial_summary_by_source.csv)
 - [`adversarial/vulnerability_score_by_source.csv`](./adversarial/vulnerability_score_by_source.csv)
 
-Measured examples:
-- `sms + whitespace_injection (without defense)`: `success_rate_pct = 0.9434`
-- `enron + char_substitution (without defense)`: `success_rate_pct = 19.4320`
+Measured examples (without defence):
 
-## Repository Structure
+- `sms + whitespace_injection`: `success_rate_pct = 0.9434`
+- `enron + char_substitution`: `success_rate_pct = 19.4320`
+
+## Discussion
+
+LinearSVC is a rational choice for a security-operations setting: it is cheap, offers exact SHAP explanations and matches the LSTM in PR-AUC, although Logistic Regression scores marginally higher on some views. Vulnerability to whitespace/character perturbations is structural to bag-of-words representations. Unicode normalisation (NFKD + collapse) is a cheap mitigation but saturates; intrinsic robustness would require adversarial training or sub-word models.
+
+## Limitations
+
+1. Single language (English).
+2. The Enron corpus dates from 1999–2002.
+3. No coverage of image-based or QR-code phishing.
+4. Platt calibration can distort probability estimates.
+5. No versioned dependency file in the repository (limits environmental reproducibility).
+6. Datasets are specific to SMS and corporate email.
+7. Robustness varies by attack type and domain.
+
+## Future work
+
+- Adversarial training [6] and/or sub-word tokenisation (BPE).
+- Behavioural and authentication signals (SPF/DKIM/DMARC).
+- Active learning.
+- Multilingual extension (e.g. DistilBERT).
+- Model Cards [4] and a packaged, version-pinned environment.
+
+## Repository structure
 
 ```text
 .
 ├── Proj_Final_VFINAL1.ipynb
 ├── preprocess.py
-├── report_consolidated.md
+├── report_consolidated.md      # superseded by this README
 ├── README.md
 ├── data.7z
 ├── data/
@@ -121,54 +158,46 @@ Measured examples:
     └── dashboard_cybersec_spam.html
 ```
 
-## How to Reproduce (Current State)
+The only directly viewable application artifact is the static dashboard [`dashboard/dashboard_cybersec_spam.html`](./dashboard/dashboard_cybersec_spam.html).
 
-> There is no `requirements.txt`, `pyproject.toml`, or `environment.yml` in the repository. Therefore, the steps below are conservative and based on the notebook.
+## How to reproduce
 
-1. **Create a virtual environment** (Python 3.10+ recommended).
-2. **Install the dependencies** used in the notebook:
+> There is no `requirements.txt`, `pyproject.toml` or `environment.yml` yet, so the steps below are based on the notebook's imports.
 
-```bash
-pip install numpy pandas scipy scikit-learn matplotlib seaborn plotly nltk joblib shap tensorflow
-```
+1. Create a virtual environment (Python 3.10+ recommended).
+2. Install the dependencies:
 
-3. **Make sure the raw data is available**:
-   - extract `data.7z` to obtain `data/spam.csv` and `data/enron_spam.csv`;
-   - if they already exist, confirm that they are located at the paths expected by the notebook.
+   ```bash
+   pip install numpy pandas scipy scikit-learn matplotlib seaborn plotly nltk joblib shap tensorflow
+   ```
 
-4. **Run the notebook**:
+3. Extract `data.7z` to obtain `data/spam.csv` and `data/enron_spam.csv` (or confirm they exist at the paths the notebook expects).
+4. Run the notebook:
 
-```bash
-jupyter notebook Proj_Final_VFINAL1.ipynb
-```
+   ```bash
+   jupyter notebook Proj_Final_VFINAL1.ipynb
+   ```
 
-or:
+   or execute it headlessly:
 
-```bash
-jupyter nbconvert --to notebook --execute Proj_Final_VFINAL1.ipynb --output Proj_Final_VFINAL1.executed.ipynb --ExecutePreprocessor.timeout=2400
-```
+   ```bash
+   jupyter nbconvert --to notebook --execute Proj_Final_VFINAL1.ipynb \
+       --output Proj_Final_VFINAL1.executed.ipynb --ExecutePreprocessor.timeout=2400
+   ```
 
-## Application API/Dashboard
+## Privacy and GDPR
 
-`report_consolidated.md` refers to execution of `api/` and `dash_app/`, but those directories are **not present** in the current repository state.
+The project treats GDPR (notably Art. 22 on automated decision-making [3]) as a design and methodological framework. This documentation does **not** claim formal certification or automatic legal compliance in production.
 
-The available artifact that can be opened directly is:
-- [`dashboard/dashboard_cybersec_spam.html`](./dashboard/dashboard_cybersec_spam.html)
+## References
 
-## Limitations and Privacy
-
-Observable limitations in the current state include:
-- the absence of a versioned dependency file, which limits environmental reproducibility;
-- datasets focused on specific languages/domains (SMS and Enron);
-- robustness that varies by adversarial attack type and domain.
-
-Privacy/GDPR:
-- the repository discusses GDPR as a design objective and methodological framework;
-- this documentation **does not** claim formal certification or automatic legal compliance in production.
-
-## Future Work (Aligned with the Report)
-
-- adversarial training and/or subword tokenization;
-- multilingual extension;
-- integration of additional signals, such as email authentication;
-- complete environment packaging with a version-pinned dependency file.
+1. S. M. Lundberg, S.-I. Lee, "A Unified Approach to Interpreting Model Predictions," *NeurIPS*, 2017.
+2. M. T. Ribeiro et al., "Why Should I Trust You?: Explaining the Predictions of Any Classifier," *KDD*, 2016.
+3. European Parliament, "Regulation (EU) 2016/679 (GDPR)," *OJEU*, 2016, Art. 22.
+4. M. Mitchell et al., "Model Cards for Model Reporting," *FAT\**, 2019.
+5. I. J. Goodfellow et al., "Explaining and Harnessing Adversarial Examples," *ICLR*, 2015.
+6. A. Madry et al., "Towards Deep Learning Models Resistant to Adversarial Attacks," *ICLR*, 2018.
+7. J. Li et al., "TextBugger," *NDSS*, 2019.
+8. T. Almeida et al., "Contributions to the Study of SMS Spam Filtering," *DocEng*, 2011.
+9. B. Klimt, Y. Yang, "The Enron Corpus," *ECML*, 2004.
+10. F. T. Liu et al., "Isolation Forest," *IEEE ICDM*, 2008.
